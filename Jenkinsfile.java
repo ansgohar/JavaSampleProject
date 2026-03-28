@@ -64,10 +64,16 @@ pipeline {
                         if ! command -v mvn &> /dev/null; then
                             echo "Maven not found, downloading..."
                             cd /tmp
-                            wget -q https://archive.apache.org/dist/maven/maven-3/3.9.6/binaries/apache-maven-3.9.6-bin.tar.gz
+                            
+                            # Use curl instead of wget (more commonly available)
+                            curl -fsSL https://archive.apache.org/dist/maven/maven-3/3.9.6/binaries/apache-maven-3.9.6-bin.tar.gz -o apache-maven-3.9.6-bin.tar.gz
                             tar xzf apache-maven-3.9.6-bin.tar.gz
+                            rm apache-maven-3.9.6-bin.tar.gz
+                            
                             export PATH=/tmp/apache-maven-3.9.6/bin:$PATH
-                            echo "Maven installed temporarily"
+                            echo "Maven 3.9.6 installed to /tmp/apache-maven-3.9.6"
+                        else
+                            echo "Maven already installed:"
                         fi
                         mvn --version
                     '''

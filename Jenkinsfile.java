@@ -3,7 +3,17 @@
 // Includes: Security scanning, SBOM generation, image signing, quality gates
 
 pipeline {
-    agent any
+    agent {
+        docker {
+            image 'maven:3.9-eclipse-temurin-21'
+            args '-v /var/run/docker.sock:/var/run/docker.sock'
+        }
+    }
+    
+    tools {
+        maven 'Maven 3.9' // Use the name you configured in Jenkins Tools
+        jdk 'Java 21'     // Optional: if you also configure JDK in Tools
+    }
     
     parameters {
         string(name: 'BRANCH', defaultValue: 'main', description: 'Branch to build')

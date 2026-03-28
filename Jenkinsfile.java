@@ -5,11 +5,11 @@
 pipeline {
     agent any
     
-     tools {
-        maven 'Maven 3.9'  // Uses configured Maven
-        jdk 'JDK 21'       // Uses configured JDK
+    tools {
+    maven 'Maven 3.9'
+    jdk 'JDK 21'
     }
-    
+
     parameters {
         string(name: 'BRANCH', defaultValue: 'main', description: 'Branch to build')
         choice(name: 'BUILD_TYPE', choices: ['snapshot', 'release', 'hotfix'], description: 'Build type')

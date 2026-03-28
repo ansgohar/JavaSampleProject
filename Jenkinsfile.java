@@ -5,9 +5,9 @@
 pipeline {
     agent any
     
-    tools {
-        maven 'Maven 3.9'
-        jdk 'JDK 17'
+     tools {
+        maven 'Maven 3.9'  // Uses configured Maven
+        jdk 'JDK 21'       // Uses configured JDK
     }
     
     parameters {

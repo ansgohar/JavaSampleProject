@@ -1,5 +1,5 @@
 // Java CI/CD Pipeline Template
-// Optimized for Java 25 LTS with Spring Boot 3.x, Maven/Gradle
+// Optimized for Java 21 LTS with Spring Boot 3.x, Maven/Gradle
 // Includes: Security scanning, SBOM generation, image signing, quality gates
 
 pipeline {
@@ -15,7 +15,7 @@ pipeline {
     
     environment {
         // Java Configuration
-        JAVA_VERSION = '25'
+        JAVA_VERSION = '21' # Java 21 LTS - stable and well-supported
         MAVEN_OPTS = '-Xmx2g -XX:+UseG1GC -XX:+UseStringDeduplication'
         
         // Registry & Repositories
@@ -292,7 +292,7 @@ pipeline {
         
         stage('Deploy to Dev') {
             when {
-                expression { env.AUTO_DEPLOY == 'true' }
+                expression { params.DEPLOY_TO_DEV == true }
             }
             steps {
                 script {
@@ -309,29 +309,37 @@ pipeline {
             script {
                 echo "✅ Pipeline completed successfully!"
                 // Send notifications
-                sh '''
-                    if [ -n "$DISCORD_WEBHOOK_URL" ]; then
-                        curl -X POST "$DISCORD_WEBHOOK_URL" \
-                            -H "Content-Type: application/json" \
-                            -d "{\\"content\\": \\"✅ Build ${BUILD_NUMBER} for ${PROJECT_NAME} succeeded!\\"}"
-                    fi
-                '''
+                node {
+                    sh '''
+                        if [ -n "$DISCORD_WEBHOOK" ]; then
+                            curl -X POST "$DISCORD_WEBHOOK" \
+                                -H "Content-Type: application/json" \
+                                -d "{\\"content\\": \\"✅ Build ${BUILD_NUMBER} for ${PROJECT_NAME} succeeded!\\"}"
+                        fi
+                    '''
+                }
             }
         }
         failure {
             script {
                 echo "❌ Pipeline failed!"
-                sh '''
-                    if [ -n "$DISCORD_WEBHOOK_URL" ]; then
-                        curl -X POST "$DISCORD_WEBHOOK_URL" \
-                            -H "Content-Type: application/json" \
-                            -d "{\\"content\\": \\"❌ Build ${BUILD_NUMBER} for ${PROJECT_NAME} failed!\\"}"
-                    fi
-                '''
+                node {
+                    sh '''
+                        if [ -n "$DISCORD_WEBHOOK" ]; then
+                            curl -X POST "$DISCORD_WEBHOOK" \
+                                -H "Content-Type: application/json" \
+                                -d "{\\"content\\": \\"❌ Build ${BUILD_NUMBER} for ${PROJECT_NAME} failed!\\"}"
+                        fi
+                    '''
+                }
             }
         }
         always {
-            cleanWs()
+            script {
+                node {
+                    cleanWs()
+                }
+            }
         }
     }
 }

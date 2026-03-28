@@ -3,17 +3,7 @@
 // Includes: Security scanning, SBOM generation, image signing, quality gates
 
 pipeline {
-    agent {
-        docker {
-            image 'maven:3.9-eclipse-temurin-21'
-            args '-v /var/run/docker.sock:/var/run/docker.sock'
-        }
-    }
-    
-    tools {
-        maven 'Maven 3.9' // Use the name you configured in Jenkins Tools
-        jdk 'Java 21'     // Optional: if you also configure JDK in Tools
-    }
+    agent any
     
     parameters {
         string(name: 'BRANCH', defaultValue: 'main', description: 'Branch to build')
@@ -65,17 +55,45 @@ pipeline {
             }
         }
         
+        stage('Setup Tools') {
+            steps {
+                script {
+                    echo "🔧 Setting up build tools..."
+                    sh '''
+                        # Check if Maven is installed, if not, download it
+                        if ! command -v mvn &> /dev/null; then
+                            echo "Maven not found, downloading..."
+                            cd /tmp
+                            wget -q https://archive.apache.org/dist/maven/maven-3/3.9.6/binaries/apache-maven-3.9.6-bin.tar.gz
+                            tar xzf apache-maven-3.9.6-bin.tar.gz
+                            export PATH=/tmp/apache-maven-3.9.6/bin:$PATH
+                            echo "Maven installed temporarily"
+                        fi
+                        mvn --version
+                    '''
+                }
+            }
+        }
+        
         stage('Build') {
             steps {
                 script {
                     echo "🔨 Building Java project..."
-                    if (fileExists('pom.xml')) {
-                        sh 'mvn clean compile -DskipTests'
-                    } else if (fileExists('build.gradle')) {
-                        sh './gradlew clean build -x test'
-                    } else {
-                        error "No Maven pom.xml or Gradle build.gradle found!"
-                    }
+                    sh '''
+                        # Set Maven path if it was downloaded
+                        if [ -d "/tmp/apache-maven-3.9.6" ]; then
+                            export PATH=/tmp/apache-maven-3.9.6/bin:$PATH
+                        fi
+                        
+                        if [ -f "pom.xml" ]; then
+                            mvn clean compile -DskipTests
+                        elif [ -f "build.gradle" ]; then
+                            ./gradlew clean build -x test
+                        else
+                            echo "No Maven pom.xml or Gradle build.gradle found!"
+                            exit 1
+                        fi
+                    '''
                 }
             }
         }
@@ -87,11 +105,18 @@ pipeline {
             steps {
                 script {
                     echo "🧪 Running unit tests..."
-                    if (fileExists('pom.xml')) {
-                        sh 'mvn test'
-                    } else if (fileExists('build.gradle')) {
-                        sh './gradlew test'
-                    }
+                    sh '''
+                        # Set Maven path if it was downloaded
+                        if [ -d "/tmp/apache-maven-3.9.6" ]; then
+                            export PATH=/tmp/apache-maven-3.9.6/bin:$PATH
+                        fi
+                        
+                        if [ -f "pom.xml" ]; then
+                            mvn test
+                        elif [ -f "build.gradle" ]; then
+                            ./gradlew test
+                        fi
+                    '''
                 }
             }
             post {
@@ -192,11 +217,18 @@ pipeline {
             steps {
                 script {
                     echo "📦 Packaging application..."
-                    if (fileExists('pom.xml')) {
-                        sh 'mvn package -DskipTests'
-                    } else if (fileExists('build.gradle')) {
-                        sh './gradlew build -x test'
-                    }
+                    sh '''
+                        # Set Maven path if it was downloaded
+                        if [ -d "/tmp/apache-maven-3.9.6" ]; then
+                            export PATH=/tmp/apache-maven-3.9.6/bin:$PATH
+                        fi
+                        
+                        if [ -f "pom.xml" ]; then
+                            mvn package -DskipTests
+                        elif [ -f "build.gradle" ]; then
+                            ./gradlew build -x test
+                        fi
+                    '''
                 }
             }
         }

@@ -174,8 +174,80 @@ pipeline {
             }
         }
         
-        // Security scanning stages removed - require additional tools/plugins not available in this Jenkins instance
-        // To enable: install HTML Publisher plugin and ensure wget/docker are available
+        stage('Security Scan - Dependencies') {
+            steps {
+                script {
+                    echo "🔒 Scanning dependencies for vulnerabilities..."
+                    sh '''
+                        # Download OWASP Dependency Check if not present
+                        if [ ! -f dependency-check/bin/dependency-check.sh ]; then
+                            echo "Downloading OWASP Dependency Check..."
+                            curl -fsSL https://github.com/jeremylong/DependencyCheck/releases/download/v8.4.0/dependency-check-8.4.0-release.zip -o dependency-check.zip
+                            unzip -q dependency-check.zip
+                            rm dependency-check.zip
+                        fi
+                        
+                        # Run dependency check
+                        ./dependency-check/bin/dependency-check.sh \
+                            --project "${PROJECT_NAME}" \
+                            --scan . \
+                            --format HTML \
+                            --format JSON \
+                            --failOnCVSS 7 \
+                            || echo "Dependency check completed with findings"
+                    '''
+                }
+            }
+            post {
+                always {
+                    script {
+                        // Archive the reports
+                        archiveArtifacts artifacts: 'dependency-check-report.html,dependency-check-report.json', allowEmptyArchive: true
+                        
+                        // Try to publish HTML report if plugin is available
+                        try {
+                            publishHTML([
+                                allowMissing: false,
+                                alwaysLinkToLastBuild: true,
+                                keepAll: true,
+                                reportDir: '.',
+                                reportFiles: 'dependency-check-report.html',
+                                reportName: 'Dependency Check Report'
+                            ])
+                            echo "✅ HTML report published"
+                        } catch (Exception e) {
+                            echo "⚠️ HTML Publisher plugin not installed - report archived as artifact instead"
+                            echo "Install HTML Publisher plugin to view reports in Jenkins UI"
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Security Scan - Secrets') {
+            steps {
+                script {
+                    echo "🔐 Scanning for exposed secrets..."
+                    sh '''
+                        # Check if docker is available
+                        if command -v docker &> /dev/null; then
+                            docker run --rm -v $(pwd):/scan \
+                                zricethezav/gitleaks:latest \
+                                detect --source /scan --report-path /scan/gitleaks-report.json || true
+                            echo "✅ Secret scan completed"
+                        else
+                            echo "⚠️ Docker not available - skipping secret scan"
+                            echo "To enable: ensure Docker is available in Jenkins agent"
+                        fi
+                    '''
+                }
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'gitleaks-report.json', allowEmptyArchive: true
+                }
+            }
+        }
         
         stage('Package') {
             steps {

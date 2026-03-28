@@ -15,7 +15,7 @@ pipeline {
     
     environment {
         // Java Configuration
-        JAVA_VERSION = '21' # Java 21 LTS - stable and well-supported
+        JAVA_VERSION = '21' // Java 21 LTS - stable and well-supported
         MAVEN_OPTS = '-Xmx2g -XX:+UseG1GC -XX:+UseStringDeduplication'
         
         // Registry & Repositories

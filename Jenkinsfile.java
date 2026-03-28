@@ -35,8 +35,8 @@ pipeline {
         DOCKER_IMAGE = "${HARBOR_REGISTRY}/${PROJECT_NAME}:${BUILD_VERSION}"
         DOCKER_BUILDKIT = '1'
         
-        // Notifications
-        DISCORD_WEBHOOK = credentials('discord-webhook')
+        // Notifications (optional - will be skipped if not configured)
+        // DISCORD_WEBHOOK = credentials('discord-webhook')
     }
     
     options {
@@ -309,29 +309,31 @@ pipeline {
             script {
                 echo "✅ Pipeline completed successfully!"
                 // Send notifications
-                node {
-                    sh '''
-                        if [ -n "$DISCORD_WEBHOOK" ]; then
-                            curl -X POST "$DISCORD_WEBHOOK" \
-                                -H "Content-Type: application/json" \
-                                -d "{\\"content\\": \\"✅ Build ${BUILD_NUMBER} for ${PROJECT_NAME} succeeded!\\"}"
-                        fi
-                    '''
-                }
+                // Uncomment below if you configure discord-webhook credential
+                // node {
+                //     sh '''
+                //         if [ -n "$DISCORD_WEBHOOK" ]; then
+                //             curl -X POST "$DISCORD_WEBHOOK" \
+                //                 -H "Content-Type: application/json" \
+                //                 -d "{\\"content\\": \\"✅ Build ${BUILD_NUMBER} for ${PROJECT_NAME} succeeded!\\"}"
+                //         fi
+                //     '''
+                // }
             }
         }
         failure {
             script {
                 echo "❌ Pipeline failed!"
-                node {
-                    sh '''
-                        if [ -n "$DISCORD_WEBHOOK" ]; then
-                            curl -X POST "$DISCORD_WEBHOOK" \
-                                -H "Content-Type: application/json" \
-                                -d "{\\"content\\": \\"❌ Build ${BUILD_NUMBER} for ${PROJECT_NAME} failed!\\"}"
-                        fi
-                    '''
-                }
+                // Uncomment below if you configure discord-webhook credential
+                // node {
+                //     sh '''
+                //         if [ -n "$DISCORD_WEBHOOK" ]; then
+                //             curl -X POST "$DISCORD_WEBHOOK" \
+                //                 -H "Content-Type: application/json" \
+                //                 -d "{\\"content\\": \\"❌ Build ${BUILD_NUMBER} for ${PROJECT_NAME} failed!\\"}"
+                //         fi
+                //     '''
+                // }
             }
         }
         always {

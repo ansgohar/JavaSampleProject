@@ -5,11 +5,6 @@
 pipeline {
     agent any
     
-    tools {
-    maven 'Maven 3.9'
-    jdk 'JDK 21'
-    }
-
     parameters {
         string(name: 'BRANCH', defaultValue: 'main', description: 'Branch to build')
         choice(name: 'BUILD_TYPE', choices: ['snapshot', 'release', 'hotfix'], description: 'Build type')
@@ -20,16 +15,14 @@ pipeline {
     
     environment {
         // Java Configuration
-        JAVA_VERSION = '21' // Java 21 LTS - stable and well-supported
+        JAVA_VERSION = '21'
         MAVEN_OPTS = '-Xmx2g -XX:+UseG1GC -XX:+UseStringDeduplication'
         
         // Registry & Repositories
         HARBOR_REGISTRY = "${env.HARBOR_URL ?: 'harbor.local'}"
-        HARBOR_CREDENTIALS = credentials('harbor-credentials')
         
         // Quality & Security
         SONAR_URL = "${env.SONARQUBE_URL ?: 'http://localhost:9000'}"
-        SONAR_TOKEN = credentials('sonarqube-token')
         
         // Project Info
         PROJECT_NAME = "${env.JOB_NAME}".tokenize('/').last()
@@ -39,9 +32,6 @@ pipeline {
         // Image & Artifact
         DOCKER_IMAGE = "${HARBOR_REGISTRY}/${PROJECT_NAME}:${BUILD_VERSION}"
         DOCKER_BUILDKIT = '1'
-        
-        // Notifications
-        DISCORD_WEBHOOK = credentials('discord-webhook')
     }
     
     options {
@@ -145,7 +135,6 @@ pipeline {
                         fi
                         
                         # Run scan with --noupdate to avoid NVD API issues
-                        # This uses the local database and skips external feed updates
                         ./dependency-check/bin/dependency-check.sh \
                             --project "${PROJECT_NAME}" \
                             --scan . \
@@ -160,10 +149,8 @@ pipeline {
             post {
                 always {
                     script {
-                        // Archive reports with allowEmptyArchive to prevent failures
                         archiveArtifacts artifacts: 'dependency-check-report.html,dependency-check-report.json', allowEmptyArchive: true
                         
-                        // Publish HTML report
                         publishHTML([
                             allowMissing: true,
                             alwaysLinkToLastBuild: true,
@@ -184,7 +171,6 @@ pipeline {
                 script {
                     echo "🔐 Scanning for exposed secrets..."
                     sh '''
-                        # Check if docker is available
                         if command -v docker &> /dev/null; then
                             docker run --rm -v $(pwd):/scan \
                                 zricethezav/gitleaks:latest \
@@ -192,8 +178,6 @@ pipeline {
                             echo "✅ Secret scan completed"
                         else
                             echo "⚠️  Docker not available, skipping GitLeaks scan"
-                            echo "💡 Consider installing GitLeaks binary or enabling Docker in Jenkins agent"
-                            # Create empty report for consistency
                             echo '{"results":[]}' > gitleaks-report.json || true
                         fi
                     '''
@@ -233,102 +217,6 @@ pipeline {
             }
         }
         
-        stage('Container Security Scan') {
-            when {
-                expression { fileExists('Dockerfile') }
-            }
-            steps {
-                script {
-                    echo "🔍 Scanning Docker image with Trivy..."
-                    def imageName = "${HARBOR_REGISTRY}/${PROJECT_NAME}:${BUILD_VERSION}"
-                    sh """
-                        trivy image \
-                            --severity HIGH,CRITICAL \
-                            --exit-code 0 \
-                            --format json \
-                            --output trivy-report.json \
-                            ${imageName}
-                            
-                        # Also scan for misconfigurations
-                        trivy config --exit-code 0 --severity HIGH,CRITICAL . || true
-                    """
-                }
-            }
-            post {
-                always {
-                    archiveArtifacts artifacts: 'trivy-report.json', allowEmptyArchive: true
-                    echo "✅ Trivy report archived"
-                }
-            }
-        }
-        
-        stage('Generate SBOM') {
-            when {
-                expression { fileExists('Dockerfile') }
-            }
-            steps {
-                script {
-                    echo "📋 Generating Software Bill of Materials (SBOM)..."
-                    def imageName = "${HARBOR_REGISTRY}/${PROJECT_NAME}:${BUILD_VERSION}"
-                    sh """
-                        # Generate SBOM with Syft
-                        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-                            anchore/syft:latest \
-                            ${imageName} \
-                            -o spdx-json=sbom-spdx.json \
-                            -o cyclonedx-json=sbom-cyclonedx.json
-                            
-                        # Generate SBOM with Trivy as well
-                        trivy image --format cyclonedx ${imageName} > trivy-sbom.json || true
-                    """
-                }
-            }
-            post {
-                always {
-                    archiveArtifacts artifacts: 'sbom-*.json,trivy-sbom.json', allowEmptyArchive: true
-                }
-            }
-        }
-        
-        stage('Sign Container Image') {
-            when {
-                allOf {
-                    expression { fileExists('Dockerfile') }
-                    expression { params.BUILD_TYPE == 'release' }
-                }
-            }
-            steps {
-                script {
-                    echo "✍️ Signing container image with Cosign..."
-                    def imageName = "${HARBOR_REGISTRY}/${PROJECT_NAME}:${BUILD_VERSION}"
-                    sh """
-                        # Sign image with Cosign (requires COSIGN_KEY or keyless signing)
-                        cosign sign --yes ${imageName} || echo "Cosign signing skipped (no key configured)"
-                        
-                        # Attach SBOM to image
-                        cosign attach sbom --sbom sbom-spdx.json ${imageName} || true
-                    """
-                }
-            }
-        }
-        
-        stage('Push to Harbor') {
-            when {
-                expression { fileExists('Dockerfile') }
-            }
-            steps {
-                script {
-                    echo "🚀 Pushing to Harbor registry..."
-                    def imageName = "${HARBOR_REGISTRY}/${PROJECT_NAME}"
-                    sh """
-                        echo ${HARBOR_CREDENTIALS_PSW} | docker login ${HARBOR_REGISTRY} -u ${HARBOR_CREDENTIALS_USR} --password-stdin
-                        docker push ${imageName}:${BUILD_VERSION}
-                        docker push ${imageName}:latest
-                    """
-                }
-            }
-        }
-        
         stage('Deploy to Dev') {
             when {
                 expression { params.DEPLOY_TO_DEV == true }
@@ -336,7 +224,6 @@ pipeline {
             steps {
                 script {
                     echo "🎯 Deploying to dev environment..."
-                    // Add your deployment logic here
                     sh "echo 'Deployment logic goes here'"
                 }
             }
@@ -344,40 +231,21 @@ pipeline {
     }
     
     post {
-        success {
-            script {
-                echo "✅ Pipeline completed successfully!"
-                // Send notifications
-                node {
-                    sh '''
-                        if [ -n "$DISCORD_WEBHOOK" ]; then
-                            curl -X POST "$DISCORD_WEBHOOK" \
-                                -H "Content-Type: application/json" \
-                                -d "{\\"content\\": \\"✅ Build ${BUILD_NUMBER} for ${PROJECT_NAME} succeeded!\\"}"
-                        fi
-                    '''
-                }
-            }
-        }
-        failure {
-            script {
-                echo "❌ Pipeline failed!"
-                node {
-                    sh '''
-                        if [ -n "$DISCORD_WEBHOOK" ]; then
-                            curl -X POST "$DISCORD_WEBHOOK" \
-                                -H "Content-Type: application/json" \
-                                -d "{\\"content\\": \\"❌ Build ${BUILD_NUMBER} for ${PROJECT_NAME} failed!\\"}"
-                        fi
-                    '''
-                }
-            }
-        }
         always {
             script {
                 node {
                     cleanWs()
                 }
+            }
+        }
+        success {
+            script {
+                echo "✅ Pipeline completed successfully!"
+            }
+        }
+        failure {
+            script {
+                echo "❌ Pipeline failed!"
             }
         }
     }

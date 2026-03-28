@@ -41,6 +41,29 @@ pipeline {
     }
     
     stages {
+        stage('Setup Tools') {
+            steps {
+                script {
+                    echo "🔧 Setting up Maven..."
+                    sh '''
+                        # Check if Maven is available
+                        if ! command -v mvn &> /dev/null; then
+                            echo "📥 Maven not found, downloading..."
+                            cd /tmp
+                            if [ ! -d "/tmp/apache-maven-3.9.6" ]; then
+                                curl -fsSL https://archive.apache.org/dist/maven/maven-3/3.9.6/binaries/apache-maven-3.9.6-bin.tar.gz -o apache-maven-3.9.6-bin.tar.gz
+                                tar xzf apache-maven-3.9.6-bin.tar.gz
+                                rm apache-maven-3.9.6-bin.tar.gz
+                            fi
+                            export PATH=/tmp/apache-maven-3.9.6/bin:$PATH
+                            echo "Maven 3.9.6 installed to /tmp/apache-maven-3.9.6"
+                        fi
+                        mvn --version
+                    '''
+                }
+            }
+        }
+        
         stage('Checkout') {
             steps {
                 script {
@@ -54,13 +77,21 @@ pipeline {
             steps {
                 script {
                     echo "🔨 Building Java project..."
-                    if (fileExists('pom.xml')) {
-                        sh 'mvn clean compile -DskipTests'
-                    } else if (fileExists('build.gradle')) {
-                        sh './gradlew clean build -x test'
-                    } else {
-                        error "No Maven pom.xml or Gradle build.gradle found!"
-                    }
+                    sh '''
+                        # Ensure Maven is in PATH
+                        if [ -d "/tmp/apache-maven-3.9.6" ]; then
+                            export PATH=/tmp/apache-maven-3.9.6/bin:$PATH
+                        fi
+                        
+                        if [ -f pom.xml ]; then
+                            mvn clean compile -DskipTests
+                        elif [ -f build.gradle ]; then
+                            ./gradlew clean build -x test
+                        else
+                            echo "❌ No Maven pom.xml or Gradle build.gradle found!"
+                            exit 1
+                        fi
+                    '''
                 }
             }
         }
@@ -72,11 +103,18 @@ pipeline {
             steps {
                 script {
                     echo "🧪 Running unit tests..."
-                    if (fileExists('pom.xml')) {
-                        sh 'mvn test'
-                    } else if (fileExists('build.gradle')) {
-                        sh './gradlew test'
-                    }
+                    sh '''
+                        # Ensure Maven is in PATH
+                        if [ -d "/tmp/apache-maven-3.9.6" ]; then
+                            export PATH=/tmp/apache-maven-3.9.6/bin:$PATH
+                        fi
+                        
+                        if [ -f pom.xml ]; then
+                            mvn test
+                        elif [ -f build.gradle ]; then
+                            ./gradlew test
+                        fi
+                    '''
                 }
             }
             post {
@@ -93,13 +131,18 @@ pipeline {
             steps {
                 script {
                     echo "📊 Running SonarQube analysis..."
-                    withSonarQubeEnv('SonarQube') {
-                        if (fileExists('pom.xml')) {
-                            sh 'mvn sonar:sonar'
-                        } else if (fileExists('build.gradle')) {
-                            sh './gradlew sonarqube'
-                        }
-                    }
+                    sh '''
+                        # Ensure Maven is in PATH
+                        if [ -d "/tmp/apache-maven-3.9.6" ]; then
+                            export PATH=/tmp/apache-maven-3.9.6/bin:$PATH
+                        fi
+                        
+                        if [ -f pom.xml ]; then
+                            mvn sonar:sonar
+                        elif [ -f build.gradle ]; then
+                            ./gradlew sonarqube
+                        fi
+                    '''
                 }
             }
         }
@@ -194,11 +237,18 @@ pipeline {
             steps {
                 script {
                     echo "📦 Packaging application..."
-                    if (fileExists('pom.xml')) {
-                        sh 'mvn package -DskipTests'
-                    } else if (fileExists('build.gradle')) {
-                        sh './gradlew build -x test'
-                    }
+                    sh '''
+                        # Ensure Maven is in PATH
+                        if [ -d "/tmp/apache-maven-3.9.6" ]; then
+                            export PATH=/tmp/apache-maven-3.9.6/bin:$PATH
+                        fi
+                        
+                        if [ -f pom.xml ]; then
+                            mvn package -DskipTests
+                        elif [ -f build.gradle ]; then
+                            ./gradlew build -x test
+                        fi
+                    '''
                 }
             }
         }

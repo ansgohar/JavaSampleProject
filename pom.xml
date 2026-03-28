@@ -32,7 +32,7 @@
         
         <!-- Test dependencies versions -->
         <junit.version>4.13.2</junit.version>
-        <jacoco.version>0.8.8</jacoco.version>
+        <jacoco.version>0.8.11</jacoco.version>
     </properties>
 
     <dependencies>

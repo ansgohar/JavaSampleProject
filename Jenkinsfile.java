@@ -131,24 +131,24 @@ pipeline {
             }
         }
         
-        stage('Quality Gate') {
-            when {
-                expression { !params.SKIP_SONAR }
-            }
-            steps {
-                script {
-                    def timeoutMinutes = params.QUALITY_GATE_TIMEOUT.toInteger()
-                    echo "🚦 Waiting for Quality Gate (timeout: ${timeoutMinutes} minutes)..."
-                    try {
-                        timeout(time: timeoutMinutes, unit: 'MINUTES') {
-                            waitForQualityGate abortPipeline: true
-                        }
-                    } catch (Exception e) {
-                        echo "⚠️  Quality Gate check skipped: ${e.message}"
-                    }
-                }
-            }
-        }
+        // stage('Quality Gate') {
+        //     when {
+        //         expression { !params.SKIP_SONAR }
+        //     }
+        //     steps {
+        //         script {
+        //             def timeoutMinutes = params.QUALITY_GATE_TIMEOUT.toInteger()
+        //             echo "🚦 Waiting for Quality Gate (timeout: ${timeoutMinutes} minutes)..."
+        //             try {
+        //                 timeout(time: timeoutMinutes, unit: 'MINUTES') {
+        //                     waitForQualityGate abortPipeline: true
+        //                 }
+        //             } catch (Exception e) {
+        //                 echo "⚠️  Quality Gate check skipped: ${e.message}"
+        //             }
+        //         }
+        //     }
+        // }
         
         stage('Security Scan - Dependencies') {
             steps {

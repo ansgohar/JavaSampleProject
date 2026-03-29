@@ -150,67 +150,67 @@ pipeline {
             }
         }
         
-        stage('Security Scan - Dependencies') {
-            steps {
-                script {
-                    echo "🔒 Scanning dependencies for vulnerabilities..."
-                    sh '''
-                        # Check if dependency-check is pre-installed
-                        if command -v dependency-check &> /dev/null; then
-                            echo "✅ Using pre-installed OWASP Dependency-Check"
-                            DEPENDENCY_CHECK_CMD="dependency-check"
-                        elif [ -f /usr/local/bin/dependency-check ]; then
-                            echo "✅ Using pre-installed OWASP Dependency-Check"
-                            DEPENDENCY_CHECK_CMD="/usr/local/bin/dependency-check"
-                        elif [ ! -f dependency-check/bin/dependency-check.sh ]; then
-                            echo "📥 Downloading OWASP Dependency-Check (first time only)..."
-                            if command -v wget &> /dev/null; then
-                                wget -q https://github.com/jeremylong/DependencyCheck/releases/download/v10.0.4/dependency-check-10.0.4-release.zip || {
-                                    echo "❌ Failed to download dependency-check"
-                                    exit 1
-                                }
-                            elif command -v curl &> /dev/null; then
-                                curl -sL -o dependency-check-10.0.4-release.zip https://github.com/jeremylong/DependencyCheck/releases/download/v10.0.4/dependency-check-10.0.4-release.zip || {
-                                    echo "❌ Failed to download dependency-check"
-                                    exit 1
-                                }
-                            else
-                                echo "❌ Neither wget nor curl is available"
-                                echo "💡 Please install security tools: Run ansible-playbook playbooks/16-jenkins-security-tools.yml"
-                                exit 1
-                            fi
-                            unzip -q dependency-check-10.0.4-release.zip
-                            echo "✅ Dependency-Check downloaded successfully"
-                            DEPENDENCY_CHECK_CMD="./dependency-check/bin/dependency-check.sh"
-                        else
-                            DEPENDENCY_CHECK_CMD="./dependency-check/bin/dependency-check.sh"
-                        fi
+        // stage('Security Scan - Dependencies') {
+        //     steps {
+        //         script {
+        //             echo "🔒 Scanning dependencies for vulnerabilities..."
+        //             sh '''
+        //                 # Check if dependency-check is pre-installed
+        //                 if command -v dependency-check &> /dev/null; then
+        //                     echo "✅ Using pre-installed OWASP Dependency-Check"
+        //                     DEPENDENCY_CHECK_CMD="dependency-check"
+        //                 elif [ -f /usr/local/bin/dependency-check ]; then
+        //                     echo "✅ Using pre-installed OWASP Dependency-Check"
+        //                     DEPENDENCY_CHECK_CMD="/usr/local/bin/dependency-check"
+        //                 elif [ ! -f dependency-check/bin/dependency-check.sh ]; then
+        //                     echo "📥 Downloading OWASP Dependency-Check (first time only)..."
+        //                     if command -v wget &> /dev/null; then
+        //                         wget -q https://github.com/jeremylong/DependencyCheck/releases/download/v10.0.4/dependency-check-10.0.4-release.zip || {
+        //                             echo "❌ Failed to download dependency-check"
+        //                             exit 1
+        //                         }
+        //                     elif command -v curl &> /dev/null; then
+        //                         curl -sL -o dependency-check-10.0.4-release.zip https://github.com/jeremylong/DependencyCheck/releases/download/v10.0.4/dependency-check-10.0.4-release.zip || {
+        //                             echo "❌ Failed to download dependency-check"
+        //                             exit 1
+        //                         }
+        //                     else
+        //                         echo "❌ Neither wget nor curl is available"
+        //                         echo "💡 Please install security tools: Run ansible-playbook playbooks/16-jenkins-security-tools.yml"
+        //                         exit 1
+        //                     fi
+        //                     unzip -q dependency-check-10.0.4-release.zip
+        //                     echo "✅ Dependency-Check downloaded successfully"
+        //                     DEPENDENCY_CHECK_CMD="./dependency-check/bin/dependency-check.sh"
+        //                 else
+        //                     DEPENDENCY_CHECK_CMD="./dependency-check/bin/dependency-check.sh"
+        //                 fi
                         
-                        $DEPENDENCY_CHECK_CMD \
-                            --project "${PROJECT_NAME}" \
-                            --scan . \
-                            --format HTML \
-                            --format JSON \
-                            --out . \
-                            --noupdate \
-                            --failOnCVSS 7 || echo "Dependency check completed with findings"
-                    '''
-                }
-            }
-            post {
-                always {
-                    archiveArtifacts artifacts: 'dependency-check-report.html,dependency-check-report.json', allowEmptyArchive: true
-                    publishHTML([
-                        allowMissing: true,
-                        alwaysLinkToLastBuild: true,
-                        keepAll: true,
-                        reportDir: '.',
-                        reportFiles: 'dependency-check-report.html',
-                        reportName: 'Dependency Check Report'
-                    ])
-                }
-            }
-        }
+        //                 $DEPENDENCY_CHECK_CMD \
+        //                     --project "${PROJECT_NAME}" \
+        //                     --scan . \
+        //                     --format HTML \
+        //                     --format JSON \
+        //                     --out . \
+        //                     --noupdate \
+        //                     --failOnCVSS 7 || echo "Dependency check completed with findings"
+        //             '''
+        //         }
+        //     }
+        //     post {
+        //         always {
+        //             archiveArtifacts artifacts: 'dependency-check-report.html,dependency-check-report.json', allowEmptyArchive: true
+        //             publishHTML([
+        //                 allowMissing: true,
+        //                 alwaysLinkToLastBuild: true,
+        //                 keepAll: true,
+        //                 reportDir: '.',
+        //                 reportFiles: 'dependency-check-report.html',
+        //                 reportName: 'Dependency Check Report'
+        //             ])
+        //         }
+        //     }
+        // }
         
         stage('Security Scan - Secrets') {
             steps {

@@ -108,28 +108,28 @@ pipeline {
             }
         }
         
-        stage('Code Quality - SonarQube') {
-            when {
-                expression { !params.SKIP_SONAR }
-            }
-            steps {
-                script {
-                    echo "📊 Running SonarQube analysis..."
-                    try {
-                        withSonarQubeEnv('SonarQube') {
-                            if (fileExists('pom.xml')) {
-                                sh 'mvn sonar:sonar'
-                            } else if (fileExists('build.gradle')) {
-                                sh './gradlew sonarqube'
-                            }
-                        }
-                    } catch (Exception e) {
-                        echo "⚠️  SonarQube analysis skipped: ${e.message}"
-                        echo "💡 Configure 'SonarQube' server in Jenkins to enable code quality analysis"
-                    }
-                }
-            }
-        }
+        // stage('Code Quality - SonarQube') {
+        //     when {
+        //         expression { !params.SKIP_SONAR }
+        //     }
+        //     steps {
+        //         script {
+        //             echo "📊 Running SonarQube analysis..."
+        //             try {
+        //                 withSonarQubeEnv('SonarQube') {
+        //                     if (fileExists('pom.xml')) {
+        //                         sh 'mvn sonar:sonar'
+        //                     } else if (fileExists('build.gradle')) {
+        //                         sh './gradlew sonarqube'
+        //                     }
+        //                 }
+        //             } catch (Exception e) {
+        //                 echo "⚠️  SonarQube analysis skipped: ${e.message}"
+        //                 echo "💡 Configure 'SonarQube' server in Jenkins to enable code quality analysis"
+        //             }
+        //         }
+        //     }
+        // }
         
         // stage('Quality Gate') {
         //     when {

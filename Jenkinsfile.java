@@ -2,6 +2,21 @@
 // Optimized for Java 21 LTS with Spring Boot 3.x, Maven/Gradle
 // Includes: Security scanning, SBOM generation, image signing, quality gates
 // Fixed: Optional credentials to prevent pipeline initialization failures
+// v3.1: Added support for both Dockerfile and Containerfile
+
+// Helper functions for Dockerfile/Containerfile detection
+def hasContainerfile() {
+    return fileExists('Dockerfile') || fileExists('Containerfile')
+}
+
+def getContainerfileName() {
+    if (fileExists('Dockerfile')) {
+        return 'Dockerfile'
+    } else if (fileExists('Containerfile')) {
+        return 'Containerfile'
+    }
+    return 'Dockerfile' // Default fallback
+}
 
 pipeline {
     agent any
@@ -17,6 +32,7 @@ pipeline {
         booleanParam(name: 'SKIP_TESTS', defaultValue: false, description: 'Skip unit tests')
         booleanParam(name: 'SKIP_SONAR', defaultValue: false, description: 'Skip SonarQube analysis')
         booleanParam(name: 'DEPLOY_TO_DEV', defaultValue: true, description: 'Auto-deploy to dev environment')
+        string(name: 'QUALITY_GATE_TIMEOUT', defaultValue: '15', description: 'Quality Gate timeout in minutes (default: 15)')
     }
     
     environment {
@@ -121,9 +137,10 @@ pipeline {
             }
             steps {
                 script {
-                    echo "🚦 Waiting for Quality Gate..."
+                    def timeoutMinutes = params.QUALITY_GATE_TIMEOUT.toInteger()
+                    echo "🚦 Waiting for Quality Gate (timeout: ${timeoutMinutes} minutes)..."
                     try {
-                        timeout(time: 10, unit: 'MINUTES') {
+                        timeout(time: timeoutMinutes, unit: 'MINUTES') {
                             waitForQualityGate abortPipeline: true
                         }
                     } catch (Exception e) {
@@ -138,17 +155,38 @@ pipeline {
                 script {
                     echo "🔒 Scanning dependencies for vulnerabilities..."
                     sh '''
-                        if [ ! -f dependency-check/bin/dependency-check.sh ]; then
-                            echo "📥 Downloading OWASP Dependency-Check..."
-                            wget -q https://github.com/jeremylong/DependencyCheck/releases/download/v10.0.4/dependency-check-10.0.4-release.zip || {
-                                echo "❌ Failed to download dependency-check"
+                        # Check if dependency-check is pre-installed
+                        if command -v dependency-check &> /dev/null; then
+                            echo "✅ Using pre-installed OWASP Dependency-Check"
+                            DEPENDENCY_CHECK_CMD="dependency-check"
+                        elif [ -f /usr/local/bin/dependency-check ]; then
+                            echo "✅ Using pre-installed OWASP Dependency-Check"
+                            DEPENDENCY_CHECK_CMD="/usr/local/bin/dependency-check"
+                        elif [ ! -f dependency-check/bin/dependency-check.sh ]; then
+                            echo "📥 Downloading OWASP Dependency-Check (first time only)..."
+                            if command -v wget &> /dev/null; then
+                                wget -q https://github.com/jeremylong/DependencyCheck/releases/download/v10.0.4/dependency-check-10.0.4-release.zip || {
+                                    echo "❌ Failed to download dependency-check"
+                                    exit 1
+                                }
+                            elif command -v curl &> /dev/null; then
+                                curl -sL -o dependency-check-10.0.4-release.zip https://github.com/jeremylong/DependencyCheck/releases/download/v10.0.4/dependency-check-10.0.4-release.zip || {
+                                    echo "❌ Failed to download dependency-check"
+                                    exit 1
+                                }
+                            else
+                                echo "❌ Neither wget nor curl is available"
+                                echo "💡 Please install security tools: Run ansible-playbook playbooks/16-jenkins-security-tools.yml"
                                 exit 1
-                            }
+                            fi
                             unzip -q dependency-check-10.0.4-release.zip
-                            echo "✅ Dependency-Check installed successfully"
+                            echo "✅ Dependency-Check downloaded successfully"
+                            DEPENDENCY_CHECK_CMD="./dependency-check/bin/dependency-check.sh"
+                        else
+                            DEPENDENCY_CHECK_CMD="./dependency-check/bin/dependency-check.sh"
                         fi
                         
-                        ./dependency-check/bin/dependency-check.sh \
+                        $DEPENDENCY_CHECK_CMD \
                             --project "${PROJECT_NAME}" \
                             --scan . \
                             --format HTML \
@@ -213,13 +251,14 @@ pipeline {
         
         stage('Build Docker Image') {
             when {
-                expression { fileExists('Dockerfile') }
+                expression { hasContainerfile() }
             }
             steps {
                 script {
-                    echo "🐳 Building Docker image..."
+                    def containerfile = getContainerfileName()
+                    echo "🐳 Building Docker image using ${containerfile}..."
                     def imageName = "${HARBOR_REGISTRY}/${PROJECT_NAME}:${BUILD_VERSION}"
-                    sh "docker build -t ${imageName} ."
+                    sh "docker build -f ${containerfile} -t ${imageName} ."
                     sh "docker tag ${imageName} ${HARBOR_REGISTRY}/${PROJECT_NAME}:latest"
                 }
             }
@@ -227,7 +266,7 @@ pipeline {
         
         stage('Container Security Scan') {
             when {
-                expression { fileExists('Dockerfile') }
+                expression { hasContainerfile() }
             }
             steps {
                 script {
@@ -249,7 +288,7 @@ pipeline {
         
         stage('Generate SBOM') {
             when {
-                expression { fileExists('Dockerfile') }
+                expression { hasContainerfile() }
             }
             steps {
                 script {
@@ -273,7 +312,7 @@ pipeline {
         stage('Sign Container Image') {
             when {
                 allOf {
-                    expression { fileExists('Dockerfile') }
+                    expression { hasContainerfile() }
                     expression { params.BUILD_TYPE == 'release' }
                 }
             }
@@ -291,7 +330,7 @@ pipeline {
         
         stage('Push to Harbor') {
             when {
-                expression { fileExists('Dockerfile') }
+                expression { hasContainerfile() }
             }
             steps {
                 script {

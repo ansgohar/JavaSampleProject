@@ -108,47 +108,47 @@ pipeline {
             }
         }
         
-        // stage('Code Quality - SonarQube') {
-        //     when {
-        //         expression { !params.SKIP_SONAR }
-        //     }
-        //     steps {
-        //         script {
-        //             echo "📊 Running SonarQube analysis..."
-        //             try {
-        //                 withSonarQubeEnv('SonarQube') {
-        //                     if (fileExists('pom.xml')) {
-        //                         sh 'mvn sonar:sonar'
-        //                     } else if (fileExists('build.gradle')) {
-        //                         sh './gradlew sonarqube'
-        //                     }
-        //                 }
-        //             } catch (Exception e) {
-        //                 echo "⚠️  SonarQube analysis skipped: ${e.message}"
-        //                 echo "💡 Configure 'SonarQube' server in Jenkins to enable code quality analysis"
-        //             }
-        //         }
-        //     }
-        // }
+        stage('Code Quality - SonarQube') {
+            when {
+                expression { !params.SKIP_SONAR }
+            }
+            steps {
+                script {
+                    echo "📊 Running SonarQube analysis..."
+                    try {
+                        withSonarQubeEnv('SonarQube') {
+                            if (fileExists('pom.xml')) {
+                                sh 'mvn sonar:sonar'
+                            } else if (fileExists('build.gradle')) {
+                                sh './gradlew sonarqube'
+                            }
+                        }
+                    } catch (Exception e) {
+                        echo "⚠️  SonarQube analysis skipped: ${e.message}"
+                        echo "💡 Configure 'SonarQube' server in Jenkins to enable code quality analysis"
+                    }
+                }
+            }
+        }
         
-        // stage('Quality Gate') {
-        //     when {
-        //         expression { !params.SKIP_SONAR }
-        //     }
-        //     steps {
-        //         script {
-        //             def timeoutMinutes = params.QUALITY_GATE_TIMEOUT.toInteger()
-        //             echo "🚦 Waiting for Quality Gate (timeout: ${timeoutMinutes} minutes)..."
-        //             try {
-        //                 timeout(time: timeoutMinutes, unit: 'MINUTES') {
-        //                     waitForQualityGate abortPipeline: true
-        //                 }
-        //             } catch (Exception e) {
-        //                 echo "⚠️  Quality Gate check skipped: ${e.message}"
-        //             }
-        //         }
-        //     }
-        // }
+        stage('Quality Gate') {
+            when {
+                expression { !params.SKIP_SONAR }
+            }
+            steps {
+                script {
+                    def timeoutMinutes = params.QUALITY_GATE_TIMEOUT.toInteger()
+                    echo "🚦 Waiting for Quality Gate (timeout: ${timeoutMinutes} minutes)..."
+                    try {
+                        timeout(time: timeoutMinutes, unit: 'MINUTES') {
+                            waitForQualityGate abortPipeline: true
+                        }
+                    } catch (Exception e) {
+                        echo "⚠️  Quality Gate check skipped: ${e.message}"
+                    }
+                }
+            }
+        }
         
         stage('Security Scan - Dependencies') {
             steps {

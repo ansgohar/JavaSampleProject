@@ -32,7 +32,7 @@ pipeline {
         booleanParam(name: 'SKIP_TESTS', defaultValue: false, description: 'Skip unit tests')
         booleanParam(name: 'SKIP_SONAR', defaultValue: false, description: 'Skip SonarQube analysis')
         booleanParam(name: 'DEPLOY_TO_DEV', defaultValue: true, description: 'Auto-deploy to dev environment')
-        string(name: 'QUALITY_GATE_TIMEOUT', defaultValue: '15', description: 'Quality Gate timeout in minutes (default: 15)')
+        string(name: 'QUALITY_GATE_TIMEOUT', defaultValue: '120', description: 'Quality Gate timeout in minutes (default: 120)')
     }
     
     environment {

@@ -141,13 +141,13 @@ pipeline {
                 script {
                     def timeoutMinutes = params.QUALITY_GATE_TIMEOUT.toInteger()
                     echo "🚦 Waiting for Quality Gate (timeout: ${timeoutMinutes} minutes)..."
-                    // try {
-                    //     timeout(time: timeoutMinutes, unit: 'MINUTES') {
-                    //         waitForQualityGate abortPipeline: true
-                    //     }
-                    // } catch (Exception e) {
-                    //     echo "⚠️  Quality Gate check skipped: ${e.message}"
-                    // }
+                    try {
+                        timeout(time: timeoutMinutes, unit: 'MINUTES') {
+                            waitForQualityGate abortPipeline: true
+                        }
+                    } catch (Exception e) {
+                        echo "⚠️  Quality Gate check skipped: ${e.message}"
+                    }
                 }
             }
         }

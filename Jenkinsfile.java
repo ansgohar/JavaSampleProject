@@ -33,6 +33,7 @@ pipeline {
         booleanParam(name: 'SKIP_SONAR', defaultValue: false, description: 'Skip SonarQube analysis')
         booleanParam(name: 'DEPLOY_TO_DEV', defaultValue: true, description: 'Auto-deploy to dev environment')
         string(name: 'QUALITY_GATE_TIMEOUT', defaultValue: '120', description: 'Quality Gate timeout in minutes (default: 120)')
+        string(name: 'HARBOR_PROJECT', defaultValue: 'horussoft', description: 'Harbor project name (default: horussoft)')
     }
     
     environment {
@@ -52,7 +53,8 @@ pipeline {
         GIT_COMMIT_SHORT = "${env.GIT_COMMIT?.take(8) ?: 'unknown'}"
         
         // Image & Artifact
-        DOCKER_IMAGE = "${HARBOR_REGISTRY}/${PROJECT_NAME}:${BUILD_VERSION}"
+        HARBOR_PROJECT = "${params.HARBOR_PROJECT ?: 'horussoft'}"
+        DOCKER_IMAGE = "${HARBOR_REGISTRY}/${HARBOR_PROJECT}/${PROJECT_NAME}:${BUILD_VERSION}"
         DOCKER_BUILDKIT = '1'
     }
     
@@ -257,9 +259,9 @@ pipeline {
                 script {
                     def containerfile = getContainerfileName()
                     echo "🐳 Building Docker image using ${containerfile}..."
-                    def imageName = "${HARBOR_REGISTRY}/${PROJECT_NAME}:${BUILD_VERSION}"
+                    def imageName = "${HARBOR_REGISTRY}/${HARBOR_PROJECT}/${PROJECT_NAME}:${BUILD_VERSION}"
                     sh "docker build -f ${containerfile} -t ${imageName} ."
-                    sh "docker tag ${imageName} ${HARBOR_REGISTRY}/${PROJECT_NAME}:latest"
+                    sh "docker tag ${imageName} ${HARBOR_REGISTRY}/${HARBOR_PROJECT}/${PROJECT_NAME}:latest"
                 }
             }
         }
@@ -271,7 +273,7 @@ pipeline {
             steps {
                 script {
                     echo "🔍 Scanning Docker image with Trivy..."
-                    def imageName = "${HARBOR_REGISTRY}/${PROJECT_NAME}:${BUILD_VERSION}"
+                    def imageName = "${HARBOR_REGISTRY}/${HARBOR_PROJECT}/${PROJECT_NAME}:${BUILD_VERSION}"
                     sh """
                         trivy image --severity HIGH,CRITICAL --exit-code 0 \
                             --format json --output trivy-report.json ${imageName}
@@ -293,7 +295,7 @@ pipeline {
             steps {
                 script {
                     echo "📋 Generating Software Bill of Materials (SBOM)..."
-                    def imageName = "${HARBOR_REGISTRY}/${PROJECT_NAME}:${BUILD_VERSION}"
+                    def imageName = "${HARBOR_REGISTRY}/${HARBOR_PROJECT}/${PROJECT_NAME}:${BUILD_VERSION}"
                     sh """
                         docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
                             anchore/syft:latest ${imageName} \
@@ -319,7 +321,7 @@ pipeline {
             steps {
                 script {
                     echo "✍️ Signing container image with Cosign..."
-                    def imageName = "${HARBOR_REGISTRY}/${PROJECT_NAME}:${BUILD_VERSION}"
+                    def imageName = "${HARBOR_REGISTRY}/${HARBOR_PROJECT}/${PROJECT_NAME}:${BUILD_VERSION}"
                     sh """
                         cosign sign --yes ${imageName} || echo "Cosign signing skipped (no key configured)"
                         cosign attach sbom --sbom sbom-spdx.json ${imageName} || true
@@ -335,7 +337,7 @@ pipeline {
             steps {
                 script {
                     echo "🚀 Pushing to Harbor registry..."
-                    def imageName = "${HARBOR_REGISTRY}/${PROJECT_NAME}"
+                    def imageName = "${HARBOR_REGISTRY}/${HARBOR_PROJECT}/${PROJECT_NAME}"
                     try {
                         withCredentials([usernamePassword(credentialsId: 'harbor-credentials', usernameVariable: 'HARBOR_USER', passwordVariable: 'HARBOR_PASS')]) {
                             sh """
